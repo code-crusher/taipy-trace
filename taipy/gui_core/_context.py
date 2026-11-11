@@ -177,23 +177,23 @@ class _GuiCoreContext(_CoreEventConsumerBase):
             new_status = submission.submission_status
 
             with self.submissions_lock:
-                last_client_status = self.client_submission.get(submission_id)
-                if not last_client_status:
-                    return
-
                 payload = {}
-                if last_client_status.submission_status is not new_status:
-                    # callback
-                    submission_name = submission.properties.get("on_submission")
+                # A submission that was not triggered from a GUI control (e.g. submitted from a user
+                # callback) is not registered in client_submission. Its jobs list may still have
+                # changed, so it must be broadcast as well, otherwise the job selector is not refreshed.
+                if last_client_status := self.client_submission.get(submission_id):
+                    if last_client_status.submission_status is not new_status:
+                        # callback
+                        submission_name = submission.properties.get("on_submission")
 
-                if new_status in (
-                    SubmissionStatus.COMPLETED,
-                    SubmissionStatus.FAILED,
-                    SubmissionStatus.CANCELED,
-                ):
-                    self.client_submission.pop(submission_id, None)
-                else:
-                    last_client_status.submission_status = new_status
+                    if new_status in (
+                        SubmissionStatus.COMPLETED,
+                        SubmissionStatus.FAILED,
+                        SubmissionStatus.CANCELED,
+                    ):
+                        self.client_submission.pop(submission_id, None)
+                    else:
+                        last_client_status.submission_status = new_status
 
             if client_id := submission.properties.get("client_id"):
                 with self.gui._get_authorization(client_id):  # type: ignore
