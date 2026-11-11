@@ -75,7 +75,7 @@
                         "name": "auto_repeat",
                         "type": "int",
                         "default_value": "None",
-                        "doc": "The period, in milliseconds, between automatic repeats when the button is pressed for a long time.<br/>If set to None or 0, auto-repeat is disabled."
+                        "doc": "The period, in milliseconds, between automatic repeats when the button is pressed for a long time.<br/>The first invocation is triggered after an initial delay of 500 milliseconds.<br/>If set to None or 0, auto-repeat is disabled."
                     },
                     {
                         "name": "width",
