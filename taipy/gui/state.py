@@ -236,8 +236,9 @@ class _GuiState(State):
         "_get_placeholder_attrs",
         "_add_attribute",
         "_invoke_on_gui",
+        "_get_module_context",
     )
-    __placeholder_attrs = ("_taipy_p1", "_current_context", "__state_id")
+    __placeholder_attrs = ("_taipy_p1", "_current_context", "__state_id", "__module_context")
     __excluded_attrs = __attrs + __methods + __placeholder_attrs
 
     def __init__(self, gui: "Gui", var_list: t.Iterable[str], context_list: t.Iterable[str]) -> None:
@@ -355,7 +356,12 @@ class _GuiState(State):
 class _AsyncState(_GuiState):
     def __init__(self, state: State) -> None:
         super().__init__(state.get_gui(), [], [])
-        self._set_placeholder("__state_id", state.get_gui()._get_client_id())  # type: ignore[attr-defined]
+        gui = state.get_gui()
+        self._set_placeholder("__state_id", gui._get_client_id())  # type: ignore[attr-defined]
+        # Remember the module context so that callbacks invoked from the async thread
+        # resolve the variables in the same module as the one that triggered the callback.
+        module_context = gui._get_locals_context() if gui._has_set_context() else None  # type: ignore[attr-defined]
+        self._set_placeholder("__module_context", module_context)  # type: ignore[attr-defined]
 
     @staticmethod
     def __set_var_in_state(state: State, var_name: str, value: t.Any):
@@ -367,13 +373,29 @@ class _AsyncState(_GuiState):
 
     def __setattr__(self, var_name: str, var_value: t.Any) -> None:
         self.get_gui().invoke_callback(
-            t.cast(str, self._get_placeholder("__state_id")), _AsyncState.__set_var_in_state, [var_name, var_value]
+            t.cast(str, self._get_placeholder("__state_id")),
+            _AsyncState.__set_var_in_state,
+            [var_name, var_value],
+            self._get_module_context(),
         )
 
     def __getattr__(self, var_name: str) -> t.Any:
         return self.get_gui().invoke_callback(
-            t.cast(str, self._get_placeholder("__state_id")), _AsyncState.__get_var_from_state, [var_name]
+            t.cast(str, self._get_placeholder("__state_id")),
+            _AsyncState.__get_var_from_state,
+            [var_name],
+            self._get_module_context(),
         )
 
+    def _get_module_context(self) -> t.Optional[str]:
+        # An explicit context (e.g. state["page_name"]) takes precedence over the one
+        # that was captured when the async state was created.
+        if (context := self._get_placeholder("_current_context")) is not None:
+            self._set_placeholder("_current_context", None)
+            return t.cast(str, context)
+        return t.cast(t.Optional[str], self._get_placeholder("__module_context"))
+
     def _invoke_on_gui(self, method: t.Callable, *args):
-        return self.get_gui()._invoke_method(t.cast(str, self._get_placeholder("__state_id")), method, *args)  # type: ignore[reportAttributeAccessIssue]
+        return self.get_gui()._invoke_method(  # type: ignore[reportAttributeAccessIssue]
+            t.cast(str, self._get_placeholder("__state_id")), method, *args, module_context=self._get_module_context()
+        )

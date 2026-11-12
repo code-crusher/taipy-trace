@@ -1679,7 +1679,7 @@ class Gui:
     def _set_module_context(self, module_context: t.Optional[str]) -> t.ContextManager[None]:
         return self._set_locals_context(module_context) if module_context is not None else contextlib.nullcontext()
 
-    def _invoke_method(self, state_id: str, method: t.Callable, *args):
+    def _invoke_method(self, state_id: str, method: t.Callable, *args, module_context: t.Optional[str] = None):
         this_sid = None
         if get_server_request_accessor(self).get_request():
             # avoid messing with the client_id => Set(ws id)
@@ -1688,7 +1688,8 @@ class Gui:
         try:
             with self.get_app_context():
                 setattr(get_server_request_accessor(self).get_request_meta(), Gui.__ARG_CLIENT_ID, state_id)
-                return method(self, *args)
+                with self._set_module_context(module_context):
+                    return method(self, *args)
         except Exception as e:  # pragma: no cover
             if not self._call_on_exception(method, e):
                 _warn(

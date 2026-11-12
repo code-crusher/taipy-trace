@@ -51,7 +51,12 @@ def test_state(gui: Gui):
 
         assert state._get_placeholder("_taipy_p1") == 10
 
-        assert state._get_placeholder_attrs() == ("_taipy_p1", "_current_context", "__state_id")
+        assert state._get_placeholder_attrs() == (
+            "_taipy_p1",
+            "_current_context",
+            "__state_id",
+            "__module_context",
+        )
 
         assert get_a(state) == 20
 
